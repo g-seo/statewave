@@ -80,3 +80,36 @@ def test_embedding_provider_default_is_valid():
 def test_embedding_provider_rejects_typo():
     with pytest.raises(ValueError, match="STATEWAVE_EMBEDDING_PROVIDER must be one of"):
         Settings(_env_file=None, embedding_provider="littelm")
+
+
+# ── embedding_model_mismatch_policy (#421) ──────────────────────────────────
+
+
+def test_embedding_model_mismatch_policy_accepts_valid_values():
+    for value in ("warn", "refuse"):
+        settings = Settings(_env_file=None, embedding_model_mismatch_policy=value)
+        assert settings.embedding_model_mismatch_policy == value
+
+
+def test_embedding_model_mismatch_policy_default_is_warn():
+    assert Settings(_env_file=None).embedding_model_mismatch_policy == "warn"
+
+
+def test_embedding_model_mismatch_policy_rejects_typo():
+    with pytest.raises(
+        ValueError, match="STATEWAVE_EMBEDDING_MODEL_MISMATCH_POLICY must be one of"
+    ):
+        Settings(_env_file=None, embedding_model_mismatch_policy="refues")
+
+
+def test_embedding_model_mismatch_policy_is_in_the_settings_catalogue():
+    """The policy knob must be admin-UI visible like every other setting
+    with a validator here. It was added to `Settings` without a matching
+    `settings_catalogue.CATALOGUE` entry, which made it invisible on the
+    admin /settings page and unreachable via the DB override layer
+    (`system_settings`) entirely, silently, with no test failing."""
+    from server.core.settings_catalogue import CATALOGUE
+
+    spec = CATALOGUE.get("embedding_model_mismatch_policy")
+    assert spec is not None, "embedding_model_mismatch_policy is missing from CATALOGUE"
+    assert spec.allowed_values == ("warn", "refuse")

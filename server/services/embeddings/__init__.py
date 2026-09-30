@@ -28,6 +28,18 @@ class BaseEmbeddingProvider(Protocol):
         ...
 
     @property
+    def model(self) -> str:
+        """Stable identifier for the model producing vectors right now.
+
+        Stamped onto `MemoryRow.embedding_model` at write time and compared
+        against it at read time to flag a stale-model row (#421). Prefer
+        this over `settings.litellm_embedding_model` directly:
+        `get_provider()` caches a singleton, so this stays correct across
+        a hot-reloaded setting.
+        """
+        ...
+
+    @property
     def provides_semantic_similarity(self) -> bool:
         """Whether the provider produces vectors with real semantic meaning.
 
@@ -114,3 +126,46 @@ def reset_provider() -> None:
     """Reset cached provider — useful for testing."""
     global _provider_instance
     _provider_instance = None
+
+
+def current_embedding_model_id() -> str | None:
+    """The model a freshly-computed embedding gets stamped with right now,
+    or None when embeddings are disabled (no vectors produced or compared).
+
+    Single source of truth for both the write side (stamping
+    `embedding_model`) and the read side (flagging a mismatch), so the two
+    can never drift onto different notions of "current".
+    """
+    provider = get_provider()
+    return provider.model if provider is not None else None
+
+
+def normalize_embedding_model_id(model_id: str | None) -> str | None:
+    """Canonical form of a stored/current model id for equality comparison.
+
+    LiteLLM treats an explicit `openai/<model>` prefix as an alias for the
+    same bare model name (both route to the identical OpenAI endpoint),
+    the same convention `server.services.llm._omit_temperature` already
+    strips before matching reasoning-model prefixes. Without normalizing
+    here, a deployment that later spells its already-openai model
+    explicitly (or a migration/backfill that writes the prefixed form)
+    reads as a model swap and flags its entire corpus (#421 follow-up).
+    """
+    if model_id is None:
+        return None
+    normalized = model_id.lower()
+    if normalized.startswith("openai/"):
+        normalized = normalized[len("openai/"):]
+    return normalized
+
+
+def same_embedding_model(a: str | None, b: str | None) -> bool:
+    """True iff `a` and `b` name the same model after normalization.
+
+    NULL never compares equal here (including NULL == NULL): callers are
+    responsible for the "unknown provenance" NULL exemption themselves;
+    this only answers "are these two known ids the same model."
+    """
+    if a is None or b is None:
+        return False
+    return normalize_embedding_model_id(a) == normalize_embedding_model_id(b)
