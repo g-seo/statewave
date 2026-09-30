@@ -6,6 +6,7 @@ from httpx import ASGITransport, AsyncClient
 from server.app import create_app
 
 
+@pytest.mark.db
 @pytest.mark.asyncio
 async def test_usage_endpoint():
     app = create_app()

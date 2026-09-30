@@ -221,6 +221,7 @@ async def test_apply_missing_required_field_is_422(client):
     assert "issue" in resp.json()["error"]["message"]
 
 
+@pytest.mark.db
 async def test_apply_creates_episode_with_provenance(client):
     resp = await client.post(
         "/v1/memory-templates/customer-support-handoff/apply",

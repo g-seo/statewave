@@ -15,10 +15,14 @@ os.environ.setdefault("STATEWAVE_ENV_FILE", "")
 from typing import Generator  # noqa: E402
 
 import pytest  # noqa: E402
+import pytest_asyncio  # noqa: E402
 from httpx import ASGITransport, AsyncClient  # noqa: E402
+from sqlalchemy import text  # noqa: E402
+from sqlalchemy.exc import OperationalError  # noqa: E402
 from starlette.routing import BaseRoute  # noqa: E402
 
 from server.app import create_app  # noqa: E402
+from server.db.engine import dispose_engine, get_engine  # noqa: E402
 
 
 def iter_routes(app_or_router) -> Generator[BaseRoute, None, None]:
@@ -47,6 +51,26 @@ def _no_api_key_in_tests(monkeypatch):
     """
     from server.core.config import settings
     monkeypatch.setattr(settings, "api_key", None)
+
+
+@pytest_asyncio.fixture(autouse=True, loop_scope="function")
+async def _require_postgres_for_db_tests(request):
+    """Skip explicitly DB-backed tests when configured Postgres is unreachable."""
+    if request.node.get_closest_marker("db") is None:
+        yield
+        return
+
+    try:
+        async with get_engine().connect() as conn:
+            await conn.execute(text("SELECT 1"))
+    except OperationalError:
+        await dispose_engine()
+        pytest.skip("PostgreSQL is not reachable; skipping DB-backed test.")
+
+    try:
+        yield
+    finally:
+        await dispose_engine()
 
 
 @pytest.fixture

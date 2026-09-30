@@ -151,6 +151,7 @@ async def test_every_issue_has_required_fields(client: AsyncClient):
             assert i["fix"]["kind"] in {"setting", "wizard", "admin_tab", "env"}
 
 
+@pytest.mark.db
 async def test_fix_staged_marks_issue_when_db_override_clears_it(
     client: AsyncClient, monkeypatch,
 ):

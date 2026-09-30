@@ -109,6 +109,7 @@ async def test_clone_rejects_reserved_prefix_as_target_id():
 # ─── 404 when the source has no records ─────────────────────────────────────
 
 
+@pytest.mark.db
 @pytest.mark.asyncio
 async def test_clone_returns_404_when_source_subject_has_no_data(client):
     """A subject id with no episodes AND no memories is treated as not found.
